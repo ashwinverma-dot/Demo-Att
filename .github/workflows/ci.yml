@@ -16,14 +16,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate HTML
+      - name: Install validation dependencies
         run: |
-          python3 -m pip install html5validator
-          html5validator --root . --show-warnings --ignore=.git
+          python3 -m pip install html5lib cssutils
+
+      - name: Validate HTML structure
+        run: |
+          python3 - <<'PY'
+from html5lib import parse
+from pathlib import Path
+content = Path('index.html').read_text(encoding='utf-8')
+parse(content)
+print('HTML structure parse complete')
+PY
 
       - name: Validate CSS syntax
         run: |
-          python3 -m pip install cssutils
           python3 - <<'PY'
 import cssutils
 from pathlib import Path

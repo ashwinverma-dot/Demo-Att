@@ -1,0 +1,14 @@
+.git
+.gitignore
+.github
+.dockerignore
+node_modules
+npm-debug.log
+test-links.js
+README.md
+.DS_Store
+*.swp
+*.swo
+*~
+.env
+.env.local
