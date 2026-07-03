@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Attendance Management</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Attendance Manager</h1>
+        <p>Track attendance for your class with a clear dashboard.</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge">Class 10 - Section A</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="dashboard-cards">
+        <article class="card">
+          <h2>Total Students</h2>
+          <p id="total-students">0</p>
+        </article>
+        <article class="card">
+          <h2>Present</h2>
+          <p id="present-count">0</p>
+        </article>
+        <article class="card">
+          <h2>Absent</h2>
+          <p id="absent-count">0</p>
+        </article>
+        <article class="card accent-card">
+          <h2>Today</h2>
+          <p id="today-date"></p>
+        </article>
+      </section>
+
+      <section class="attendance-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Student Attendance</h2>
+            <p>Mark attendance for each student below.</p>
+          </div>
+          <div class="panel-actions">
+            <button id="add-student" class="button primary" type="button">Add Student</button>
+            <div class="search-group">
+              <label for="search">Search</label>
+              <input id="search" type="text" placeholder="Search student" />
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Roll No.</th>
+                <th>Attendance</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="attendance-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-overlay hidden" id="student-form-overlay">
+          <div class="modal-card">
+            <div class="modal-header">
+              <h3>Add New Student</h3>
+              <button id="close-form" type="button" class="button close-button">×</button>
+            </div>
+            <form id="student-form">
+              <div class="form-group">
+                <label for="student-name">Student Name</label>
+                <input id="student-name" type="text" required />
+              </div>
+              <div class="form-group">
+                <label for="student-roll">Roll Number</label>
+                <input id="student-roll" type="text" required />
+              </div>
+              <div class="form-group">
+                <label for="student-status">Attendance</label>
+                <select id="student-status">
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" class="button primary">Save Student</button>
+                <button id="cancel-form" type="button" class="button secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const STORAGE_KEY = 'attendanceStudents';
+
+    const defaultStudents = [
+      { name: 'Aanya Sharma', roll: '101', status: 'Present' },
+      { name: 'Rohan Patil', roll: '102', status: 'Present' },
+      { name: 'Meera Joshi', roll: '103', status: 'Present' },
+      { name: 'Arjun Singh', roll: '104', status: 'Absent' },
+      { name: 'Preeti Kulkarni', roll: '105', status: 'Present' },
+    ];
+
+    const todayDateEl = document.getElementById('today-date');
+    const totalStudentsEl = document.getElementById('total-students');
+    const presentCountEl = document.getElementById('present-count');
+    const absentCountEl = document.getElementById('absent-count');
+    const attendanceTbody = document.getElementById('attendance-tbody');
+    const addStudentButton = document.getElementById('add-student');
+    const studentOverlay = document.getElementById('student-form-overlay');
+    const studentForm = document.getElementById('student-form');
+    const closeFormButton = document.getElementById('close-form');
+    const cancelFormButton = document.getElementById('cancel-form');
+    const searchInput = document.getElementById('search');
+
+    function getCurrentStudents() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultStudents));
+        return [...defaultStudents];
+      }
+      try {
+        return JSON.parse(stored) || [];
+      } catch (error) {
+        return [...defaultStudents];
+      }
+    }
+
+    function saveStudents(students) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+    }
+
+    function formatDate(date) {
+      return date.toISOString().slice(0, 10);
+    }
+
+    function updateStats(students) {
+      totalStudentsEl.textContent = students.length;
+      presentCountEl.textContent = students.filter((student) => student.status === 'Present').length;
+      absentCountEl.textContent = students.filter((student) => student.status === 'Absent').length;
+    }
+
+    function renderAttendanceTable(filter = '') {
+      const students = getCurrentStudents();
+      const normalizedFilter = filter.trim().toLowerCase();
+      const filtered = students.filter((student) => {
+        if (!normalizedFilter) return true;
+        return (
+          student.name.toLowerCase().includes(normalizedFilter) ||
+          student.roll.toLowerCase().includes(normalizedFilter)
+        );
+      });
+
+      attendanceTbody.innerHTML = filtered
+        .map((student, index) => {
+          return `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${student.name}</td>
+              <td>${student.roll}</td>
+              <td>
+                <div class="status-buttons">
+                  <button type="button" class="status present ${student.status === 'Present' ? 'active' : ''}" data-index="${index}" data-status="Present">Present</button>
+                  <button type="button" class="status absent ${student.status === 'Absent' ? 'active' : ''}" data-index="${index}" data-status="Absent">Absent</button>
+                </div>
+              </td>
+              <td>
+                <span class="status-label ${student.status.toLowerCase()}">${student.status}</span>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      updateStats(students);
+    }
+
+    function openForm() {
+      studentOverlay.classList.remove('hidden');
+      studentForm.reset();
+      document.getElementById('student-name').focus();
+    }
+
+    function closeForm() {
+      studentOverlay.classList.add('hidden');
+      studentForm.reset();
+    }
+
+    function handleStatusClick(event) {
+      const button = event.target.closest('.status');
+      if (!button) return;
+
+      const students = getCurrentStudents();
+      const index = Number(button.dataset.index);
+      const status = button.dataset.status;
+      if (Number.isNaN(index) || !status) return;
+
+      students[index].status = status;
+      saveStudents(students);
+      renderAttendanceTable(searchInput.value);
+    }
+
+    function handleFormSubmit(event) {
+      event.preventDefault();
+      const nameInput = document.getElementById('student-name');
+      const rollInput = document.getElementById('student-roll');
+      const statusInput = document.getElementById('student-status');
+
+      const newStudent = {
+        name: nameInput.value.trim(),
+        roll: rollInput.value.trim(),
+        status: statusInput.value,
+      };
+
+      if (!newStudent.name || !newStudent.roll) return;
+
+      const students = getCurrentStudents();
+      students.push(newStudent);
+      saveStudents(students);
+      closeForm();
+      renderAttendanceTable(searchInput.value);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      todayDateEl.textContent = formatDate(new Date());
+      renderAttendanceTable();
+    });
+
+    addStudentButton.addEventListener('click', openForm);
+    closeFormButton.addEventListener('click', closeForm);
+    cancelFormButton.addEventListener('click', closeForm);
+    studentForm.addEventListener('submit', handleFormSubmit);
+    attendanceTbody.addEventListener('click', handleStatusClick);
+    searchInput.addEventListener('input', () => renderAttendanceTable(searchInput.value));
+  </script>
+</body>
+</html>

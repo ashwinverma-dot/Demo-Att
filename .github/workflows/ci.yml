@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate HTML
+        run: |
+          python3 -m pip install html5validator
+          html5validator --root . --show-warnings --ignore=.git
+
+      - name: Validate CSS syntax
+        run: |
+          python3 -m pip install cssutils
+          python3 - <<'PY'
+import cssutils
+from pathlib import Path
+
+css = Path('styles.css').read_text(encoding='utf-8')
+parser = cssutils.CSSParser(loglevel='WARNING')
+parser.parseString(css)
+print('CSS parse complete')
+PY
+
+      - name: Check file presence
+        run: |
+          test -f index.html
+          test -f styles.css
