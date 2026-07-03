@@ -1,0 +1,116 @@
+name: Link Checker
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly check on Sunday
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install link checker
+        run: npm install -g broken-link-checker
+
+      - name: Start local server
+        run: |
+          python3 -m http.server 8000 > /dev/null 2>&1 &
+          sleep 2
+          echo "Server started on http://localhost:8000"
+
+      - name: Check for broken links
+        run: |
+          blc http://localhost:8000 -ro --exclude-external
+
+      - name: Validate HTML links with Node
+        run: |
+          npm install cheerio axios
+          node - <<'NODEJS'
+          const cheerio = require('cheerio');
+          const axios = require('axios');
+          const fs = require('fs');
+          const path = require('path');
+
+          async function checkLinks() {
+            const htmlFile = fs.readFileSync('index.html', 'utf8');
+            const $ = cheerio.load(htmlFile);
+            const links = [];
+
+            // Extract all href attributes
+            $('a[href]').each((i, elem) => {
+              const href = $(elem).attr('href');
+              if (!href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
+                links.push(href);
+              }
+            });
+
+            console.log(`Found ${links.length} links to check`);
+
+            if (links.length === 0) {
+              console.log('No external links found in HTML');
+              return;
+            }
+
+            const results = { working: 0, broken: 0, skipped: 0 };
+
+            for (const link of links) {
+              if (link.startsWith('http') || link.startsWith('//')) {
+                try {
+                  const response = await axios.head(link, { timeout: 5000, maxRedirects: 5 });
+                  if (response.status >= 200 && response.status < 400) {
+                    console.log(`✓ ${link}`);
+                    results.working++;
+                  } else {
+                    console.log(`✗ ${link} - Status: ${response.status}`);
+                    results.broken++;
+                  }
+                } catch (error) {
+                  console.log(`✗ ${link} - Error: ${error.message}`);
+                  results.broken++;
+                }
+              } else {
+                // Local links
+                const filePath = path.join(process.cwd(), link);
+                if (fs.existsSync(filePath)) {
+                  console.log(`✓ ${link} (local)`);
+                  results.working++;
+                } else {
+                  console.log(`✗ ${link} (local) - File not found`);
+                  results.broken++;
+                }
+              }
+            }
+
+            console.log(`\n--- Link Check Results ---`);
+            console.log(`Working: ${results.working}`);
+            console.log(`Broken: ${results.broken}`);
+            console.log(`Skipped: ${results.skipped}`);
+
+            if (results.broken > 0) {
+              process.exit(1);
+            }
+          }
+
+          checkLinks().catch(error => {
+            console.error('Link checker error:', error);
+            process.exit(1);
+          });
+          NODEJS
+
+      - name: Summary
+        if: always()
+        run: echo "Link validation completed. Check results above."
